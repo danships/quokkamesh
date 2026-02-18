@@ -5,7 +5,7 @@ import { yamux } from '@chainsafe/libp2p-yamux';
 import { bootstrap } from '@libp2p/bootstrap';
 import { identify } from '@libp2p/identify';
 import type { Libp2p } from 'libp2p';
-import type { Stream } from '@libp2p/interface';
+import type { PeerId, Stream } from '@libp2p/interface';
 import type { Tool } from '../protocol/types.js';
 import type { Transport } from './interface.js';
 
@@ -24,9 +24,16 @@ export interface Libp2pTransportOptions {
  * For the PoC, discovery uses bootstrap peers and a simple tool-advertisement
  * protocol rather than full Kademlia DHT.
  */
+/** Event detail for peer:discovery (id is PeerId). */
+type PeerDiscoveryEvent = { detail: { id: PeerId } };
+/** Event detail for connection:open (remotePeer is PeerId). */
+type ConnectionOpenEvent = { detail: { remotePeer: PeerId } };
+
 export class Libp2pTransport implements Transport {
   private node!: Libp2p;
   private messageHandler: ((peerId: string, msg: Uint8Array) => void) | null = null;
+  private peerDiscoveryHandler: ((e: PeerDiscoveryEvent) => void) | null = null;
+  private connectionOpenHandler: ((e: ConnectionOpenEvent) => void) | null = null;
   private readonly listenPort: number;
   private readonly bootstrapAddrs: string[];
   private readonly localTools: Tool[] = [];
@@ -79,23 +86,28 @@ export class Libp2pTransport implements Transport {
     });
 
     // Auto-dial discovered peers and exchange tools
-    this.node.addEventListener('peer:discovery', (event) => {
+    this.peerDiscoveryHandler = (event) => {
       const peerId = event.detail.id;
       void this.node.dial(peerId).catch(() => {
         // Ignore dial errors during discovery
       });
-    });
+    };
+    this.node.addEventListener('peer:discovery', this.peerDiscoveryHandler as (e: unknown) => void);
 
     // When a new connection is established, send our tools (with a brief
     // delay so the remote peer's protocol handlers are ready).
-    this.node.addEventListener('connection:open', (event) => {
+    this.connectionOpenHandler = (event) => {
       const remotePeer = event.detail.remotePeer.toString();
       if (this.localTools.length > 0) {
         void this.sendToolAdvertisementWithRetry(remotePeer).catch(() => {
           // Ignore errors during tool advertisement
         });
       }
-    });
+    };
+    this.node.addEventListener(
+      'connection:open',
+      this.connectionOpenHandler as (e: unknown) => void,
+    );
 
     await this.node.start();
     this.started = true;
@@ -105,8 +117,25 @@ export class Libp2pTransport implements Transport {
     if (!this.started) {
       return;
     }
-    await this.node.stop();
+    if (this.node) {
+      if (this.peerDiscoveryHandler) {
+        this.node.removeEventListener(
+          'peer:discovery',
+          this.peerDiscoveryHandler as (e: unknown) => void,
+        );
+        this.peerDiscoveryHandler = null;
+      }
+      if (this.connectionOpenHandler) {
+        this.node.removeEventListener(
+          'connection:open',
+          this.connectionOpenHandler as (e: unknown) => void,
+        );
+        this.connectionOpenHandler = null;
+      }
+      await this.node.stop();
+    }
     this.peerTools.clear();
+    this.localTools.length = 0;
     this.started = false;
   }
 
@@ -234,7 +263,10 @@ export class Libp2pTransport implements Transport {
   }
 
   private async writeAndClose(stream: Stream, data: Uint8Array): Promise<void> {
-    stream.send(data);
+    const drained = stream.send(data);
+    if (!drained) {
+      await stream.onDrain();
+    }
     await stream.close();
   }
 }
