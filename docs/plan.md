@@ -93,8 +93,8 @@ agentmesh/
 | 6   | Tool Registry           | ✅ Done |
 | 7   | Transport Interface     | ✅ Done |
 | 8   | Local Transport         | ✅ Done |
-| 9   | libp2p Transport        | ⬜ Todo |
-| 10  | Agent                   | ⬜ Todo |
+| 9   | libp2p Transport        | ✅ Done |
+| 10  | Agent                   | ✅ Done |
 
 | #   | Test Suite              | Status                                                                |
 | --- | ----------------------- | --------------------------------------------------------------------- |
@@ -102,8 +102,9 @@ agentmesh/
 | 2   | delegation.test.ts      | ✅ 7/7 passing                                                        |
 | 3   | envelope.test.ts        | ✅ 6/6 passing                                                        |
 | 4   | tools.test.ts           | ✅ 4/4 passing                                                        |
-| 5   | local-transport.test.ts | ✅ 8/8 passing (LocalTransport only; full loop with Agent in step 10) |
-| 6   | p2p.test.ts             | ⬜ Not started                                                        |
+| 5   | local-transport.test.ts | ✅ 8/8 passing                                                        |
+| 6   | agent.test.ts           | ✅ 7/7 passing (Agent + LocalTransport full loop + fleet recognition) |
+| 7   | p2p.test.ts             | ✅ 4/4 passing (Agent + Libp2pTransport over real TCP)                |
 
 ---
 

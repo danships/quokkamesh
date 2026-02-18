@@ -22,13 +22,17 @@ export class LocalTransport implements Transport {
   }
 
   async start(): Promise<void> {
-    if (this.started) return;
+    if (this.started) {
+      return;
+    }
     registry.set(this.peerId, { transport: this, tools: [] });
     this.started = true;
   }
 
   async stop(): Promise<void> {
-    if (!this.started) return;
+    if (!this.started) {
+      return;
+    }
     registry.delete(this.peerId);
     this.started = false;
   }

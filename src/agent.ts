@@ -1,0 +1,178 @@
+import { type AgentIdentity, generateIdentity } from './identity/keys.js';
+import {
+  type DelegationCert,
+  isFleetSibling,
+  verifyDelegationCert,
+} from './identity/delegation.js';
+import { canonicalize } from './identity/serialize.js';
+import { createTaskEnvelope, verifyTaskEnvelope, createTaskResponse } from './protocol/envelope.js';
+import { type TaskHandler, ToolRegistry } from './protocol/tools.js';
+import type { Tool, TaskEnvelope, TaskResponse } from './protocol/types.js';
+import type { Transport } from './transport/interface.js';
+
+interface PendingRequest {
+  resolve: (response: TaskResponse) => void;
+  reject: (error: Error) => void;
+}
+
+/**
+ * Wire message types exchanged over transport.
+ * Wraps TaskEnvelope, TaskResponse, and delegation cert exchange.
+ */
+type WireMessage =
+  | { type: 'task'; envelope: TaskEnvelope }
+  | { type: 'response'; response: TaskResponse }
+  | { type: 'cert-exchange'; cert: DelegationCert };
+
+export class Agent {
+  readonly identity: AgentIdentity;
+  readonly delegation?: DelegationCert;
+  readonly tools: ToolRegistry;
+  private readonly transport: Transport;
+  private readonly pending = new Map<string, PendingRequest>();
+  private readonly peerCerts = new Map<string, DelegationCert>();
+
+  constructor(transport: Transport, delegation?: DelegationCert) {
+    this.identity = generateIdentity();
+    this.delegation = delegation;
+    this.tools = new ToolRegistry();
+    this.transport = transport;
+  }
+
+  registerTool(tool: Tool, handler: TaskHandler): void {
+    this.tools.register(tool, handler);
+  }
+
+  async start(): Promise<void> {
+    this.transport.onMessage((peerId, msg) => this.handleMessage(peerId, msg));
+    await this.transport.start();
+    await this.transport.advertise(this.tools.list());
+  }
+
+  async stop(): Promise<void> {
+    await this.transport.stop();
+    // Reject any pending requests
+    for (const [taskId, pending] of this.pending) {
+      pending.reject(new Error('Agent stopped'));
+      this.pending.delete(taskId);
+    }
+  }
+
+  get peerId(): string {
+    return this.transport.peerId;
+  }
+
+  async request(peerId: string, tool: string, payload: unknown): Promise<TaskResponse> {
+    const envelope = createTaskEnvelope(this.identity, peerId, tool, payload);
+    const wireMsg: WireMessage = { type: 'task', envelope };
+    const bytes = canonicalize(wireMsg);
+
+    return new Promise<TaskResponse>((resolve, reject) => {
+      this.pending.set(envelope.taskId, { resolve, reject });
+      this.transport.send(peerId, bytes).catch((error) => {
+        this.pending.delete(envelope.taskId);
+        reject(error);
+      });
+    });
+  }
+
+  async discover(toolName: string): Promise<string[]> {
+    return this.transport.discover(toolName);
+  }
+
+  checkFleetSibling(remoteCert: DelegationCert): boolean {
+    if (!this.delegation) {
+      return false;
+    }
+    return isFleetSibling(this.delegation, remoteCert);
+  }
+
+  getPeerCert(peerId: string): DelegationCert | undefined {
+    return this.peerCerts.get(peerId);
+  }
+
+  private handleMessage(peerId: string, msg: Uint8Array): void {
+    let wireMsg: WireMessage;
+    try {
+      wireMsg = JSON.parse(new TextDecoder().decode(msg)) as WireMessage;
+    } catch {
+      return; // Ignore malformed messages
+    }
+
+    switch (wireMsg.type) {
+      case 'task': {
+        void this.handleTask(peerId, wireMsg.envelope);
+        break;
+      }
+      case 'response': {
+        this.handleResponse(wireMsg.response);
+        break;
+      }
+      case 'cert-exchange': {
+        this.handleCertExchange(peerId, wireMsg.cert);
+        break;
+      }
+    }
+  }
+
+  private async handleTask(peerId: string, envelope: TaskEnvelope): Promise<void> {
+    // 1. Verify signature
+    if (!verifyTaskEnvelope(envelope)) {
+      const errorResponse = createTaskResponse(this.identity, envelope.taskId, {
+        error: 'invalid signature',
+      });
+      const wireMsg: WireMessage = { type: 'response', response: errorResponse };
+      await this.transport.send(peerId, canonicalize(wireMsg));
+      return;
+    }
+
+    // 2. Look up tool handler
+    const handler = this.tools.getHandler(envelope.tool);
+    if (!handler) {
+      const errorResponse = createTaskResponse(this.identity, envelope.taskId, {
+        error: `unknown tool: ${envelope.tool}`,
+      });
+      const wireMsg: WireMessage = { type: 'response', response: errorResponse };
+      await this.transport.send(peerId, canonicalize(wireMsg));
+      return;
+    }
+
+    // 3. Execute handler
+    try {
+      const result = await handler(envelope.payload);
+      const response = createTaskResponse(this.identity, envelope.taskId, result);
+      const wireMsg: WireMessage = { type: 'response', response };
+      await this.transport.send(peerId, canonicalize(wireMsg));
+    } catch (error) {
+      const errorResponse = createTaskResponse(this.identity, envelope.taskId, {
+        error: error instanceof Error ? error.message : 'handler failed',
+      });
+      const wireMsg: WireMessage = { type: 'response', response: errorResponse };
+      await this.transport.send(peerId, canonicalize(wireMsg));
+    }
+  }
+
+  private handleResponse(response: TaskResponse): void {
+    const pending = this.pending.get(response.taskId);
+    if (!pending) {
+      return;
+    }
+
+    this.pending.delete(response.taskId);
+    pending.resolve(response);
+  }
+
+  private handleCertExchange(peerId: string, cert: DelegationCert): void {
+    if (verifyDelegationCert(cert)) {
+      this.peerCerts.set(peerId, cert);
+    }
+  }
+
+  async exchangeCert(peerId: string): Promise<void> {
+    if (!this.delegation) {
+      throw new Error('No delegation cert to exchange');
+    }
+    const wireMsg: WireMessage = { type: 'cert-exchange', cert: this.delegation };
+    await this.transport.send(peerId, canonicalize(wireMsg));
+  }
+}

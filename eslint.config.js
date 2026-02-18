@@ -13,6 +13,7 @@ export default tseslint.config(
     rules: {
       'unicorn/prevent-abbreviations': 'off',
       'unicorn/no-null': 'off',
+      curly: 'error',
     },
   },
 );
