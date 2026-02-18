@@ -39,6 +39,9 @@ export class Libp2pTransport implements Transport {
   }
 
   get peerId(): string {
+    if (!this.node) {
+      throw new Error('Libp2pTransport not started: call start() before accessing peerId');
+    }
     return this.node.peerId.toString();
   }
 

@@ -4,13 +4,7 @@ import { LocalTransport } from '../src/transport/local.js';
 import { generateIdentity } from '../src/identity/keys.js';
 import { createDelegationCert } from '../src/identity/delegation.js';
 import { verifyTaskResponse } from '../src/protocol/envelope.js';
-import type { Tool } from '../src/protocol/types.js';
-import type { TaskHandler } from '../src/protocol/tools.js';
-
-const echoTool: Tool = { name: 'echo', description: 'Echoes back the message it receives' };
-const echoHandler: TaskHandler = async (payload) => {
-  return { echo: (payload as { message: string }).message };
-};
+import { echoTool, echoHandler } from './fixtures/echo.js';
 
 describe('Agent — LocalTransport integration', () => {
   let agentA: Agent;
@@ -93,17 +87,22 @@ describe('Agent — LocalTransport integration', () => {
 });
 
 describe('Agent — Fleet recognition', () => {
+  let agentA: Agent;
+  let agentB: Agent;
+
+  afterEach(async () => {
+    await agentA?.stop();
+    await agentB?.stop();
+  });
+
   it('fleet siblings recognize each other', async () => {
     const owner = generateIdentity();
-
-    const transportA = new LocalTransport();
-    const transportB = new LocalTransport();
 
     const certA = createDelegationCert(owner, generateIdentity().publicKey, ['*'], 60_000);
     const certB = createDelegationCert(owner, generateIdentity().publicKey, ['*'], 60_000);
 
-    const agentA = new Agent(transportA, certA);
-    const agentB = new Agent(transportB, certB);
+    agentA = new Agent(new LocalTransport(), certA);
+    agentB = new Agent(new LocalTransport(), certB);
 
     agentB.registerTool(echoTool, echoHandler);
     await agentA.start();
@@ -117,23 +116,17 @@ describe('Agent — Fleet recognition', () => {
     const bCert = agentA.getPeerCert(agentB.peerId);
     expect(bCert).toBeDefined();
     expect(agentA.checkFleetSibling(bCert!)).toBe(true);
-
-    await agentA.stop();
-    await agentB.stop();
   });
 
   it('non-fleet agents are not siblings', async () => {
     const ownerA = generateIdentity();
     const ownerB = generateIdentity();
 
-    const transportA = new LocalTransport();
-    const transportB = new LocalTransport();
-
     const certA = createDelegationCert(ownerA, generateIdentity().publicKey, ['*'], 60_000);
     const certB = createDelegationCert(ownerB, generateIdentity().publicKey, ['*'], 60_000);
 
-    const agentA = new Agent(transportA, certA);
-    const agentB = new Agent(transportB, certB);
+    agentA = new Agent(new LocalTransport(), certA);
+    agentB = new Agent(new LocalTransport(), certB);
 
     agentB.registerTool(echoTool, echoHandler);
     await agentA.start();
@@ -146,8 +139,5 @@ describe('Agent — Fleet recognition', () => {
     const bCert = agentA.getPeerCert(agentB.peerId);
     expect(bCert).toBeDefined();
     expect(agentA.checkFleetSibling(bCert!)).toBe(false);
-
-    await agentA.stop();
-    await agentB.stop();
   });
 });

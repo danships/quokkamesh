@@ -5,7 +5,12 @@ import {
   verifyDelegationCert,
 } from './identity/delegation.js';
 import { canonicalize } from './identity/serialize.js';
-import { createTaskEnvelope, verifyTaskEnvelope, createTaskResponse } from './protocol/envelope.js';
+import {
+  createTaskEnvelope,
+  verifyTaskEnvelope,
+  createTaskResponse,
+  verifyTaskResponse,
+} from './protocol/envelope.js';
 import { type TaskHandler, ToolRegistry } from './protocol/tools.js';
 import type { Tool, TaskEnvelope, TaskResponse } from './protocol/types.js';
 import type { Transport } from './transport/interface.js';
@@ -13,6 +18,7 @@ import type { Transport } from './transport/interface.js';
 interface PendingRequest {
   resolve: (response: TaskResponse) => void;
   reject: (error: Error) => void;
+  timer: ReturnType<typeof setTimeout>;
 }
 
 /**
@@ -31,12 +37,15 @@ export class Agent {
   private readonly transport: Transport;
   private readonly pending = new Map<string, PendingRequest>();
   private readonly peerCerts = new Map<string, DelegationCert>();
+  private readonly requestTimeoutMs: number;
+  private started = false;
 
-  constructor(transport: Transport, delegation?: DelegationCert) {
+  constructor(transport: Transport, delegation?: DelegationCert, requestTimeoutMs?: number) {
     this.identity = generateIdentity();
     this.delegation = delegation;
     this.tools = new ToolRegistry();
     this.transport = transport;
+    this.requestTimeoutMs = requestTimeoutMs ?? 30_000;
   }
 
   registerTool(tool: Tool, handler: TaskHandler): void {
@@ -44,15 +53,20 @@ export class Agent {
   }
 
   async start(): Promise<void> {
+    if (this.started) {
+      return;
+    }
     this.transport.onMessage((peerId, msg) => this.handleMessage(peerId, msg));
     await this.transport.start();
     await this.transport.advertise(this.tools.list());
+    this.started = true;
   }
 
   async stop(): Promise<void> {
     await this.transport.stop();
     // Reject any pending requests
     for (const [taskId, pending] of this.pending) {
+      clearTimeout(pending.timer);
       pending.reject(new Error('Agent stopped'));
       this.pending.delete(taskId);
     }
@@ -68,8 +82,14 @@ export class Agent {
     const bytes = canonicalize(wireMsg);
 
     return new Promise<TaskResponse>((resolve, reject) => {
-      this.pending.set(envelope.taskId, { resolve, reject });
+      const timer = setTimeout(() => {
+        this.pending.delete(envelope.taskId);
+        reject(new Error('Request timed out'));
+      }, this.requestTimeoutMs);
+
+      this.pending.set(envelope.taskId, { resolve, reject, timer });
       this.transport.send(peerId, bytes).catch((error) => {
+        clearTimeout(timer);
         this.pending.delete(envelope.taskId);
         reject(error);
       });
@@ -91,13 +111,58 @@ export class Agent {
     return this.peerCerts.get(peerId);
   }
 
+  private isValidWireMessage(parsed: unknown): parsed is WireMessage {
+    if (typeof parsed !== 'object' || parsed === null) {
+      return false;
+    }
+    const obj = parsed as Record<string, unknown>;
+    if (typeof obj.type !== 'string') {
+      return false;
+    }
+    switch (obj.type) {
+      case 'task': {
+        const envelope = obj.envelope;
+        return (
+          typeof envelope === 'object' &&
+          envelope !== null &&
+          typeof (envelope as Record<string, unknown>).taskId === 'string'
+        );
+      }
+      case 'response': {
+        const response = obj.response;
+        return (
+          typeof response === 'object' &&
+          response !== null &&
+          typeof (response as Record<string, unknown>).taskId === 'string'
+        );
+      }
+      case 'cert-exchange': {
+        const cert = obj.cert;
+        return (
+          typeof cert === 'object' &&
+          cert !== null &&
+          typeof (cert as Record<string, unknown>).owner === 'string'
+        );
+      }
+      default: {
+        return false;
+      }
+    }
+  }
+
   private handleMessage(peerId: string, msg: Uint8Array): void {
-    let wireMsg: WireMessage;
+    let parsed: unknown;
     try {
-      wireMsg = JSON.parse(new TextDecoder().decode(msg)) as WireMessage;
+      parsed = JSON.parse(new TextDecoder().decode(msg));
     } catch {
       return; // Ignore malformed messages
     }
+
+    if (!this.isValidWireMessage(parsed)) {
+      return;
+    }
+
+    const wireMsg = parsed;
 
     switch (wireMsg.type) {
       case 'task': {
@@ -159,6 +224,13 @@ export class Agent {
     }
 
     this.pending.delete(response.taskId);
+    clearTimeout(pending.timer);
+
+    if (!verifyTaskResponse(response)) {
+      pending.reject(new Error('Invalid task response signature'));
+      return;
+    }
+
     pending.resolve(response);
   }
 

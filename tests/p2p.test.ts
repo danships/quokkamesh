@@ -2,13 +2,7 @@ import { describe, it, expect, afterEach } from 'vitest';
 import { Agent } from '../src/agent.js';
 import { Libp2pTransport } from '../src/transport/libp2p.js';
 import { verifyTaskResponse } from '../src/protocol/envelope.js';
-import type { Tool } from '../src/protocol/types.js';
-import type { TaskHandler } from '../src/protocol/tools.js';
-
-const echoTool: Tool = { name: 'echo', description: 'Echoes back the message it receives' };
-const echoHandler: TaskHandler = async (payload) => {
-  return { echo: (payload as { message: string }).message };
-};
+import { echoTool, echoHandler } from './fixtures/echo.js';
 
 describe('P2P Integration', () => {
   let agentA: Agent;
@@ -45,10 +39,7 @@ describe('P2P Integration', () => {
   }
 
   it('two agents connect over TCP', async () => {
-    await setupAgents();
-
-    // If we got here without timeout, connection succeeded
-    expect(true).toBe(true);
+    await expect(setupAgents()).resolves.toBeUndefined();
   }, 15_000);
 
   it('agent A discovers agent B by tool name', async () => {
