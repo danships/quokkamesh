@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { program } from 'commander';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { runAgent } from './runner.js';
 import { loadConfig, resolveDataDir } from './config.js';
@@ -18,6 +18,10 @@ program
       console.error('Agent started. Peer ID:', agent.peerId);
       console.error('Press Ctrl+C to stop.');
       let shuttingDown = false;
+      let resolveWait: () => void;
+      const waitPromise = new Promise<void>((r) => {
+        resolveWait = r;
+      });
       const shutdown = async () => {
         if (shuttingDown) {
           return;
@@ -28,11 +32,12 @@ program
         } catch (error) {
           console.error('Error stopping agent:', error);
         }
+        resolveWait();
         process.exit(0);
       };
       process.on('SIGINT', shutdown);
       process.on('SIGTERM', shutdown);
-      await new Promise<void>(() => {});
+      await waitPromise;
     } catch (error) {
       console.error('Failed to start agent:', error);
       process.exit(1);
@@ -45,21 +50,34 @@ program
   .option('-c, --config <path>', 'Path to write config file (default: ./agentmesh.config.json)')
   .option('-d, --data-dir <path>', 'Data directory for keys (default: ./.agentmesh)')
   .action(async (opts: { config?: string; dataDir?: string }) => {
-    const dataDir = path.resolve(opts.dataDir ?? './.agentmesh');
-    const configPath = opts.config ?? './agentmesh.config.json';
-    mkdirSync(dataDir, { recursive: true });
-    loadOrCreateAgentKey(dataDir);
-    if (!loadOwnerKey(dataDir)) {
-      createOwnerKey(dataDir);
+    try {
+      const dataDir = path.resolve(opts.dataDir ?? './.agentmesh');
+      const configPath = path.resolve(opts.config ?? './agentmesh.config.json');
+      mkdirSync(dataDir, { recursive: true });
+      loadOrCreateAgentKey(dataDir);
+      if (!loadOwnerKey(dataDir)) {
+        createOwnerKey(dataDir);
+      }
+      const config = {
+        name: 'my-agent',
+        dataDir: path.resolve(dataDir),
+        transport: { network: 'public', listenPort: 0, bootstrapAddrs: [] },
+        tools: [],
+      };
+      if (existsSync(configPath)) {
+        console.error(
+          'Config already exists at',
+          configPath,
+          '— skipping write to avoid overwriting.',
+        );
+      } else {
+        writeFileSync(configPath, JSON.stringify(config, null, 2));
+        console.error('Created', configPath, 'and keys in', dataDir);
+      }
+    } catch (error) {
+      console.error('Init failed:', error);
+      process.exit(1);
     }
-    const config = {
-      name: 'my-agent',
-      dataDir: path.resolve(dataDir),
-      transport: { network: 'public', listenPort: 0, bootstrapAddrs: [] },
-      tools: [],
-    };
-    writeFileSync(path.resolve(configPath), JSON.stringify(config, null, 2));
-    console.error('Created', configPath, 'and keys in', dataDir);
   });
 
 const keysCmd = program.command('keys').description('Key management');
@@ -77,7 +95,7 @@ keysCmd
     }
     const hex = Buffer.from(identity.publicKey).toString('hex');
     console.log('Agent public key (hex):', hex);
-    console.log('Agent URI: agent://' + hex.slice(0, 16) + '...');
+    console.log('Agent URI: agent://' + hex);
   });
 
 program.parse();

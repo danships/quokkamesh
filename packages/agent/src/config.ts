@@ -1,4 +1,4 @@
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync, existsSync, statSync } from 'node:fs';
 import path from 'node:path';
 
 /** Transport and network options for the agent. */
@@ -57,15 +57,22 @@ export function resolveDataDir(config?: AgentMeshConfig): string {
 }
 
 /**
- * Load config from file. Searches cwd (or AGENTMESH_CONFIG_PATH) for agentmesh.config.json or .agentmesh.json.
+ * Load config from file. If AGENTMESH_CONFIG_PATH is set: when it is a file path, that file is used;
+ * when it is a directory, agentmesh.config.json / .agentmesh.json are searched there. Otherwise searches cwd.
  */
 export function loadConfig(explicitPath?: string): AgentMeshConfig {
-  const searchDir = process.env['AGENTMESH_CONFIG_PATH']
-    ? path.resolve(process.env['AGENTMESH_CONFIG_PATH'])
-    : process.cwd();
-  const paths = explicitPath
-    ? [path.resolve(explicitPath)]
-    : DEFAULT_CONFIG_PATHS.map((p) => path.resolve(searchDir, p));
+  const envPath = process.env['AGENTMESH_CONFIG_PATH'];
+  const resolvedEnv = envPath ? path.resolve(envPath) : undefined;
+  let paths: string[];
+  if (explicitPath) {
+    paths = [path.resolve(explicitPath)];
+  } else if (resolvedEnv !== undefined && existsSync(resolvedEnv)) {
+    paths = statSync(resolvedEnv).isFile()
+      ? [resolvedEnv]
+      : DEFAULT_CONFIG_PATHS.map((p) => path.resolve(resolvedEnv, p));
+  } else {
+    paths = DEFAULT_CONFIG_PATHS.map((p) => path.resolve(process.cwd(), p));
+  }
 
   for (const p of paths) {
     if (existsSync(p)) {

@@ -1,4 +1,9 @@
-import { Agent, Libp2pTransport, LLM_MESSAGE_TOOL } from '@agentmesh/transport';
+import {
+  Agent,
+  type DelegationCert,
+  Libp2pTransport,
+  LLM_MESSAGE_TOOL,
+} from '@agentmesh/transport';
 import { loadConfig, resolveDataDir } from './config.js';
 import { loadOrCreateAgentKey, loadOwnerKey, loadOrCreateDelegationCert } from './keys.js';
 
@@ -19,7 +24,7 @@ export async function runAgent(configPath?: string): Promise<Agent> {
 
   const agentIdentity = loadOrCreateAgentKey(dataDir);
   const ownerIdentity = loadOwnerKey(dataDir);
-  let delegation = undefined;
+  let delegation: DelegationCert | undefined = undefined;
   if (ownerIdentity) {
     delegation = loadOrCreateDelegationCert(dataDir, agentIdentity.publicKey, ownerIdentity);
   }

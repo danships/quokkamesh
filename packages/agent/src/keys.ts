@@ -33,28 +33,35 @@ function ensureDir(dataDir: string, subdir: string): string {
   return dir;
 }
 
-/**
- * Load or generate agent keypair. If the key file does not exist, generates a new identity and saves it.
- */
-/**
- * Load agent keypair from data dir. Returns undefined if the key file does not exist.
- */
+/** Load agent keypair from data dir. Returns undefined if the key file does not exist or is invalid. */
 export function loadAgentKey(dataDir: string): AgentIdentity | undefined {
   const keyPath = path.join(dataDir, KEYS_DIR, AGENT_KEY_FILE);
   if (!existsSync(keyPath)) {
     return undefined;
   }
-  const buf = readFileSync(keyPath);
-  return deserializeKeypair(buf);
+  try {
+    const buf = readFileSync(keyPath);
+    return deserializeKeypair(buf);
+  } catch {
+    return undefined;
+  }
 }
 
+/** Load or generate agent keypair. If the key file does not exist or is invalid, generates a new identity and saves it. */
 export function loadOrCreateAgentKey(dataDir: string): AgentIdentity {
   const keysDir = ensureDir(dataDir, KEYS_DIR);
   const keyPath = path.join(keysDir, AGENT_KEY_FILE);
 
   if (existsSync(keyPath)) {
-    const buf = readFileSync(keyPath);
-    return deserializeKeypair(buf);
+    try {
+      const buf = readFileSync(keyPath);
+      return deserializeKeypair(buf);
+    } catch {
+      // Corrupt or truncated key file; overwrite with new identity
+      const identity = generateIdentity();
+      writeFileSync(keyPath, serializeKeypair(identity), { mode: 0o600 });
+      return identity;
+    }
   }
 
   const identity = generateIdentity();
@@ -62,16 +69,18 @@ export function loadOrCreateAgentKey(dataDir: string): AgentIdentity {
   return identity;
 }
 
-/**
- * Load owner keypair from data dir. Returns undefined if not present.
- */
+/** Load owner keypair from data dir. Returns undefined if not present or invalid. */
 export function loadOwnerKey(dataDir: string): AgentIdentity | undefined {
   const keyPath = path.join(dataDir, OWNER_KEY_FILE);
   if (!existsSync(keyPath)) {
     return undefined;
   }
-  const buf = readFileSync(keyPath);
-  return deserializeKeypair(buf);
+  try {
+    const buf = readFileSync(keyPath);
+    return deserializeKeypair(buf);
+  } catch {
+    return undefined;
+  }
 }
 
 /**
@@ -109,7 +118,7 @@ export function loadOrCreateDelegationCert(
   }
 
   const cert = createDelegationCert(ownerIdentity, agentPublicKey, scope, ttlMs);
-  ensureDir(dataDir, 'keys');
+  ensureDir(dataDir, KEYS_DIR);
   writeFileSync(certPath, JSON.stringify(cert, null, 2), { mode: 0o600 });
   return cert;
 }

@@ -262,18 +262,36 @@ export class Libp2pTransport implements Transport {
   }
 
   private readStream(stream: Stream, remotePeer: string): void {
-    stream.addEventListener('message', (event) => {
+    let messageReceived = false;
+    const onMessage = (event: {
+      data: Uint8Array | { subarray(): Uint8Array; length: number };
+    }) => {
       if (!this.messageHandler) {
         return;
       }
+      messageReceived = true;
       const data = event.data;
       const bytes = data instanceof Uint8Array ? data : data.subarray();
       this.messageHandler(remotePeer, bytes);
-    });
+    };
+    const cleanup = () => {
+      stream.removeEventListener('message', onMessage);
+      stream.removeEventListener('close', onClose);
+    };
+    const onClose = () => {
+      if (!messageReceived) {
+        console.error('Libp2pTransport: stream closed before message received from', remotePeer);
+      }
+      cleanup();
+    };
+    stream.addEventListener('message', onMessage);
+    stream.addEventListener('close', onClose);
   }
 
   private readToolsStream(stream: Stream, remotePeer: string): void {
-    stream.addEventListener('message', (event) => {
+    const onMessage = (event: {
+      data: Uint8Array | { subarray(): Uint8Array; length: number };
+    }) => {
       try {
         const data = event.data;
         const bytes = data instanceof Uint8Array ? data : data.subarray();
@@ -283,7 +301,16 @@ export class Libp2pTransport implements Transport {
       } catch {
         // Ignore malformed tool advertisements
       }
-    });
+    };
+    const cleanup = () => {
+      stream.removeEventListener('message', onMessage);
+      stream.removeEventListener('close', onClose);
+    };
+    const onClose = () => {
+      cleanup();
+    };
+    stream.addEventListener('message', onMessage);
+    stream.addEventListener('close', onClose);
   }
 
   private async writeAndClose(stream: Stream, data: Uint8Array): Promise<void> {
