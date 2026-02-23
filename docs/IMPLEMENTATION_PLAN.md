@@ -201,6 +201,16 @@ interface Tool {
 agent.registerTool(tool, handler);
 ```
 
+#### Standard tool: free-text for LLM agents
+
+The protocol defines a well-known tool for LLM-to-LLM communication:
+
+- **Name:** `agentmesh/llm-message`
+- **Description:** Free-form text message for LLM agents.
+- **Payload:** `{ text: string }` — a single required `text` field.
+
+Agents that support LLM messaging should register this tool (e.g. from `@agentmesh/transport`: `LLM_MESSAGE_TOOL`) and handle payloads that conform to this shape. Payload validation is applied at accept time; invalid payloads receive an error response.
+
 ### 4.4 Transport Adapter
 
 ```typescript
@@ -268,6 +278,15 @@ Primary: **DHT (Kademlia)** via libp2p's `@libp2p/kad-dht`
 Secondary: **Bootstrap list** of known peers for initial network entry.
 
 Optional: **Tool Registry** — anyone can host one, agents register their tool listings, registry does not control identity.
+
+#### LAN vs public network mode
+
+The libp2p transport supports two network modes (see `Libp2pTransportOptions.network`):
+
+- **`lan`:** DHT uses protocol `/ipfs/lan/kad/1.0.0` and a peer-info mapper that removes public addresses. Agents only discover and connect to peers on the same local network. Listen address is `0.0.0.0` so LAN peers can connect.
+- **`public`:** DHT uses protocol `/ipfs/kad/1.0.0` (IPFS Amino) and a peer-info mapper that removes private addresses. Agents can discover peers on the public internet. Provide bootstrap multiaddrs for initial discovery.
+
+LAN agents never see public-only peers; public agents use the public DHT. Choose the mode that matches your deployment.
 
 #### Fleet Discovery
 

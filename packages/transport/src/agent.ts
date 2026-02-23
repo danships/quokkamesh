@@ -11,6 +11,7 @@ import {
   createTaskResponse,
   verifyTaskResponse,
 } from './protocol/envelope.js';
+import { validatePayload } from './protocol/standard-tools.js';
 import { type TaskHandler, ToolRegistry } from './protocol/tools.js';
 import type { Tool, TaskEnvelope, TaskResponse } from './protocol/types.js';
 import type { Transport } from './transport/interface.js';
@@ -30,6 +31,15 @@ type WireMessage =
   | { type: 'response'; response: TaskResponse }
   | { type: 'cert-exchange'; cert: DelegationCert };
 
+export interface AgentOptions {
+  /** Use this identity instead of generating a new one (e.g. loaded from disk). */
+  identity?: AgentIdentity;
+  /** Optional delegation cert when this agent is owned by a fleet. */
+  delegation?: DelegationCert;
+  /** Request timeout in ms. Default 30_000. */
+  requestTimeoutMs?: number;
+}
+
 export class Agent {
   readonly identity: AgentIdentity;
   readonly delegation?: DelegationCert;
@@ -40,12 +50,27 @@ export class Agent {
   private readonly requestTimeoutMs: number;
   private started = false;
 
-  constructor(transport: Transport, delegation?: DelegationCert, requestTimeoutMs?: number) {
-    this.identity = generateIdentity();
-    this.delegation = delegation;
+  constructor(
+    transport: Transport,
+    delegationOrOptions?: DelegationCert | AgentOptions,
+    requestTimeoutMs?: number,
+  ) {
+    let options: AgentOptions = {};
+    if (delegationOrOptions != null) {
+      const o = delegationOrOptions as Record<string, unknown>;
+      options =
+        typeof o === 'object' && ('identity' in o || 'requestTimeoutMs' in o)
+          ? (delegationOrOptions as AgentOptions)
+          : { delegation: delegationOrOptions as DelegationCert };
+    }
+    if (requestTimeoutMs != null) {
+      options.requestTimeoutMs = requestTimeoutMs;
+    }
+    this.identity = options.identity ?? generateIdentity();
+    this.delegation = options.delegation;
     this.tools = new ToolRegistry();
     this.transport = transport;
-    this.requestTimeoutMs = requestTimeoutMs ?? 30_000;
+    this.requestTimeoutMs = options.requestTimeoutMs ?? 30_000;
   }
 
   registerTool(tool: Tool, handler: TaskHandler): void {
@@ -202,7 +227,21 @@ export class Agent {
       return;
     }
 
-    // 3. Execute handler
+    // 3. Validate payload against tool definition
+    const tool = this.tools.getTool(envelope.tool);
+    if (tool) {
+      const validation = validatePayload(tool, envelope.payload);
+      if (!validation.valid) {
+        const errorResponse = createTaskResponse(this.identity, envelope.taskId, {
+          error: validation.error ?? 'invalid payload',
+        });
+        const wireMsg: WireMessage = { type: 'response', response: errorResponse };
+        await this.transport.send(peerId, canonicalize(wireMsg));
+        return;
+      }
+    }
+
+    // 4. Execute handler
     try {
       const result = await handler(envelope.payload);
       const response = createTaskResponse(this.identity, envelope.taskId, result);

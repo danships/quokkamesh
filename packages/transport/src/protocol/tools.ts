@@ -22,6 +22,10 @@ export class ToolRegistry {
     return this.entries.get(toolName)?.handler;
   }
 
+  getTool(toolName: string): Tool | undefined {
+    return this.entries.get(toolName)?.tool;
+  }
+
   list(): Tool[] {
     return [...this.entries.values()].map((entry) => entry.tool);
   }

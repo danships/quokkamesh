@@ -4,6 +4,8 @@ import { noise } from '@chainsafe/libp2p-noise';
 import { yamux } from '@chainsafe/libp2p-yamux';
 import { bootstrap } from '@libp2p/bootstrap';
 import { identify } from '@libp2p/identify';
+import { kadDHT, removePublicAddressesMapper, removePrivateAddressesMapper } from '@libp2p/kad-dht';
+import { ping } from '@libp2p/ping';
 import type { Libp2p } from 'libp2p';
 import type { PeerId, Stream } from '@libp2p/interface';
 import type { Tool } from '../protocol/types.js';
@@ -11,18 +13,26 @@ import type { Transport } from './interface.js';
 
 const PROTOCOL = '/agentmesh/task/1.0.0';
 
+/** Network mode: LAN (local only) or public internet. */
+export type NetworkMode = 'lan' | 'public';
+
 export interface Libp2pTransportOptions {
   /** TCP port to listen on (0 = random). */
   listenPort?: number;
-  /** Multiaddrs to bootstrap to (e.g. other agent addresses). */
+  /** Multiaddrs to bootstrap to (e.g. other agent addresses). For public mode, at least one bootstrap node is recommended. */
   bootstrapAddrs?: string[];
+  /**
+   * Network mode. 'lan': only discover and connect to peers on the same LAN (DHT uses /ipfs/lan/kad/1.0.0).
+   * 'public': use the public DHT (IPFS Amino, /ipfs/kad/1.0.0). LAN agents never see public-only peers.
+   * @default 'public'
+   */
+  network?: NetworkMode;
 }
 
 /**
  * Real P2P transport using libp2p (TCP + Noise + Yamux).
- *
- * For the PoC, discovery uses bootstrap peers and a simple tool-advertisement
- * protocol rather than full Kademlia DHT.
+ * Uses Kademlia DHT for peer discovery; tool advertisement is still exchanged over streams on connect.
+ * LAN mode: DHT and connections are restricted to the local network.
  */
 /** Event detail for peer:discovery (id is PeerId). */
 type PeerDiscoveryEvent = { detail: { id: PeerId } };
@@ -36,6 +46,7 @@ export class Libp2pTransport implements Transport {
   private connectionOpenHandler: ((e: ConnectionOpenEvent) => void) | null = null;
   private readonly listenPort: number;
   private readonly bootstrapAddrs: string[];
+  private readonly network: NetworkMode;
   private readonly localTools: Tool[] = [];
   private readonly peerTools = new Map<string, Tool[]>();
   private started = false;
@@ -43,6 +54,7 @@ export class Libp2pTransport implements Transport {
   constructor(options: Libp2pTransportOptions = {}) {
     this.listenPort = options.listenPort ?? 0;
     this.bootstrapAddrs = options.bootstrapAddrs ?? [];
+    this.network = options.network ?? 'public';
   }
 
   get peerId(): string {
@@ -60,9 +72,19 @@ export class Libp2pTransport implements Transport {
     const peerDiscovery =
       this.bootstrapAddrs.length > 0 ? [bootstrap({ list: this.bootstrapAddrs })] : [];
 
+    const isLan = this.network === 'lan';
+    const dhtService = kadDHT({
+      protocol: isLan ? '/ipfs/lan/kad/1.0.0' : '/ipfs/kad/1.0.0',
+      peerInfoMapper: isLan ? removePublicAddressesMapper : removePrivateAddressesMapper,
+      clientMode: false,
+      logPrefix: isLan ? 'agentmesh:dht-lan' : 'agentmesh:dht-public',
+      datastorePrefix: isLan ? '/agentmesh-dht-lan' : '/agentmesh-dht-public',
+      metricsPrefix: isLan ? 'agentmesh_dht_lan' : 'agentmesh_dht_public',
+    });
+
     this.node = await createLibp2p({
       addresses: {
-        listen: [`/ip4/127.0.0.1/tcp/${this.listenPort}`],
+        listen: [`/ip4/0.0.0.0/tcp/${this.listenPort}`],
       },
       transports: [tcp()],
       connectionEncrypters: [noise()],
@@ -70,6 +92,8 @@ export class Libp2pTransport implements Transport {
       peerDiscovery,
       services: {
         identify: identify(),
+        ping: ping(),
+        dht: dhtService,
       },
     });
 
@@ -238,18 +262,36 @@ export class Libp2pTransport implements Transport {
   }
 
   private readStream(stream: Stream, remotePeer: string): void {
-    stream.addEventListener('message', (event) => {
+    let messageReceived = false;
+    const onMessage = (event: {
+      data: Uint8Array | { subarray(): Uint8Array; length: number };
+    }) => {
       if (!this.messageHandler) {
         return;
       }
+      messageReceived = true;
       const data = event.data;
       const bytes = data instanceof Uint8Array ? data : data.subarray();
       this.messageHandler(remotePeer, bytes);
-    });
+    };
+    const cleanup = () => {
+      stream.removeEventListener('message', onMessage);
+      stream.removeEventListener('close', onClose);
+    };
+    const onClose = () => {
+      if (!messageReceived) {
+        console.error('Libp2pTransport: stream closed before message received from', remotePeer);
+      }
+      cleanup();
+    };
+    stream.addEventListener('message', onMessage);
+    stream.addEventListener('close', onClose);
   }
 
   private readToolsStream(stream: Stream, remotePeer: string): void {
-    stream.addEventListener('message', (event) => {
+    const onMessage = (event: {
+      data: Uint8Array | { subarray(): Uint8Array; length: number };
+    }) => {
       try {
         const data = event.data;
         const bytes = data instanceof Uint8Array ? data : data.subarray();
@@ -259,7 +301,16 @@ export class Libp2pTransport implements Transport {
       } catch {
         // Ignore malformed tool advertisements
       }
-    });
+    };
+    const cleanup = () => {
+      stream.removeEventListener('message', onMessage);
+      stream.removeEventListener('close', onClose);
+    };
+    const onClose = () => {
+      cleanup();
+    };
+    stream.addEventListener('message', onMessage);
+    stream.addEventListener('close', onClose);
   }
 
   private async writeAndClose(stream: Stream, data: Uint8Array): Promise<void> {

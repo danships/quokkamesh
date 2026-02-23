@@ -1,0 +1,47 @@
+{
+  "name": "@agentmesh/transport",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "AgentMesh P2P transport, protocol, and agent core",
+  "license": "MIT",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "../../node_modules/.bin/eslint . && ../../node_modules/.bin/prettier --check .",
+    "lint:eslint": "../../node_modules/.bin/eslint .",
+    "lint:prettier": "../../node_modules/.bin/prettier --check .",
+    "format": "../../node_modules/.bin/eslint . --fix && ../../node_modules/.bin/prettier --write ."
+  },
+  "dependencies": {
+    "@chainsafe/libp2p-noise": "^17.0.0",
+    "@chainsafe/libp2p-yamux": "^8.0.1",
+    "@libp2p/bootstrap": "^12.0.11",
+    "@libp2p/identify": "^4.0.10",
+    "@libp2p/interface": "^3.1.0",
+    "@libp2p/kad-dht": "^16.1.3",
+    "@libp2p/ping": "^3.0.10",
+    "@libp2p/tcp": "^11.0.10",
+    "@noble/ed25519": "^3.0.0",
+    "@noble/hashes": "^1.7.0",
+    "libp2p": "^3.1.3",
+    "uint8arrays": "^5.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^25.2.3",
+    "typescript": "^5.7.0",
+    "vitest": "^3.0.0"
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "name": "@agentmesh/agent",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Runnable AgentMesh agent — config, keys, CLI, tools",
+  "license": "MIT",
+  "bin": {
+    "agentmesh-agent": "./dist/cli.js"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "../../node_modules/.bin/eslint . && ../../node_modules/.bin/prettier --check .",
+    "lint:eslint": "../../node_modules/.bin/eslint .",
+    "lint:prettier": "../../node_modules/.bin/prettier --check .",
+    "format": "../../node_modules/.bin/eslint . --fix && ../../node_modules/.bin/prettier --write ."
+  },
+  "dependencies": {
+    "@agentmesh/transport": "workspace:*",
+    "commander": "^12.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^25.2.3",
+    "typescript": "^5.7.0",
+    "vitest": "^3.0.0"
+  }
+}
