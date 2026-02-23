@@ -40,7 +40,9 @@ describe('validatePayload', () => {
   it('rejects non-object for agentmesh/llm-message', () => {
     const r1 = validatePayload(LLM_MESSAGE_TOOL, null);
     expect(r1.valid).toBe(false);
-    expect((r1 as { error: string }).error).toContain('object');
+    if (!r1.valid) {
+      expect(r1.error).toContain('object');
+    }
 
     expect(validatePayload(LLM_MESSAGE_TOOL, 'hello').valid).toBe(false);
     expect(validatePayload(LLM_MESSAGE_TOOL, 123).valid).toBe(false);
@@ -50,7 +52,9 @@ describe('validatePayload', () => {
   it('rejects missing or non-string text for agentmesh/llm-message', () => {
     const r1 = validatePayload(LLM_MESSAGE_TOOL, {});
     expect(r1.valid).toBe(false);
-    expect((r1 as { error: string }).error).toContain('text');
+    if (!r1.valid) {
+      expect(r1.error).toContain('text');
+    }
 
     expect(validatePayload(LLM_MESSAGE_TOOL, { text: 42 }).valid).toBe(false);
   });
@@ -58,5 +62,16 @@ describe('validatePayload', () => {
   it('accepts unknown tool with object payload', () => {
     const tool = { name: 'custom', description: 'Custom tool' };
     expect(validatePayload(tool, { foo: 1 })).toEqual({ valid: true });
+  });
+
+  it('rejects unknown tool with non-object payload', () => {
+    const tool = { name: 'custom', description: 'Custom tool' };
+    const r1 = validatePayload(tool, null);
+    expect(r1.valid).toBe(false);
+    if (!r1.valid) {
+      expect(r1.error).toBeDefined();
+    }
+    const r2 = validatePayload(tool, 'string');
+    expect(r2.valid).toBe(false);
   });
 });

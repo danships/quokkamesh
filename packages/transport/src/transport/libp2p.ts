@@ -84,9 +84,7 @@ export class Libp2pTransport implements Transport {
 
     this.node = await createLibp2p({
       addresses: {
-        listen: [
-          isLan ? `/ip4/0.0.0.0/tcp/${this.listenPort}` : `/ip4/127.0.0.1/tcp/${this.listenPort}`,
-        ],
+        listen: [`/ip4/0.0.0.0/tcp/${this.listenPort}`],
       },
       transports: [tcp()],
       connectionEncrypters: [noise()],

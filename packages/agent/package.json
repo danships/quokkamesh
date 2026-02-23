@@ -5,8 +5,7 @@
   "description": "Runnable AgentMesh agent — config, keys, CLI, tools",
   "license": "MIT",
   "bin": {
-    "agentmesh-agent": "./dist/cli.js",
-    "agent": "./dist/cli.js"
+    "agentmesh-agent": "./dist/cli.js"
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

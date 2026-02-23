@@ -39,7 +39,7 @@ export interface AgentMeshConfig {
 const DEFAULT_CONFIG_PATHS = ['agentmesh.config.json', '.agentmesh.json'];
 
 /**
- * Resolve data directory: config dataDir, or AGENTMESH_DATA_DIR, or ~/.agentmesh, or ./.agentmesh.
+ * Resolve data directory: AGENTMESH_DATA_DIR env (first), then config.dataDir, then ~/.agentmesh, then ./.agentmesh.
  */
 export function resolveDataDir(config?: AgentMeshConfig): string {
   const env = process.env['AGENTMESH_DATA_DIR'];
@@ -70,7 +70,12 @@ export function loadConfig(explicitPath?: string): AgentMeshConfig {
   for (const p of paths) {
     if (existsSync(p)) {
       const raw = readFileSync(p, 'utf8');
-      return JSON.parse(raw) as AgentMeshConfig;
+      try {
+        return JSON.parse(raw) as AgentMeshConfig;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        throw new Error(`Invalid JSON in config file ${p}: ${message}`);
+      }
     }
   }
 

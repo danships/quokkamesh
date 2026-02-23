@@ -46,21 +46,39 @@ export function validatePayload(
     return { valid: true };
   }
 
-  // Optional: validate other tools by parameters schema if present
+  // Other tools: payload must be an object
+  if (payload === null || typeof payload !== 'object' || Array.isArray(payload)) {
+    return { valid: false, error: 'Payload must be an object' };
+  }
   const params = tool.parameters as
     | { required?: string[]; properties?: Record<string, { type?: string }> }
     | undefined;
-  if (
-    params?.required?.length &&
-    (payload === null || typeof payload !== 'object' || Array.isArray(payload))
-  ) {
-    return { valid: false, error: 'Payload must be an object' };
-  }
   if (params?.required) {
     const obj = payload as Record<string, unknown>;
     for (const key of params.required) {
       if (!(key in obj)) {
         return { valid: false, error: `Missing required field: ${key}` };
+      }
+      const props = params.properties;
+      if (props?.[key]?.type) {
+        const expected = props[key].type;
+        const val = obj[key];
+        const actual = Array.isArray(val) ? 'array' : typeof val;
+        if (expected === 'integer' && typeof val !== 'number') {
+          return { valid: false, error: `Field ${key} expected type integer but got ${actual}` };
+        }
+        if (expected !== 'array' && expected !== 'object' && actual !== expected) {
+          return {
+            valid: false,
+            error: `Field ${key} expected type ${expected} but got ${actual}`,
+          };
+        }
+        if ((expected === 'array' || expected === 'object') && actual !== expected) {
+          return {
+            valid: false,
+            error: `Field ${key} expected type ${expected} but got ${actual}`,
+          };
+        }
       }
     }
   }

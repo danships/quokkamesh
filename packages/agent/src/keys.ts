@@ -7,6 +7,8 @@ import {
   type DelegationCert,
 } from '@agentmesh/transport';
 
+const KEYS_DIR = 'keys';
+const AGENT_KEY_FILE = 'agent.key';
 const OWNER_KEY_FILE = 'keys/owner.key';
 const DELEGATION_CERT_FILE = 'keys/delegation.json';
 
@@ -34,9 +36,21 @@ function ensureDir(dataDir: string, subdir: string): string {
 /**
  * Load or generate agent keypair. If the key file does not exist, generates a new identity and saves it.
  */
+/**
+ * Load agent keypair from data dir. Returns undefined if the key file does not exist.
+ */
+export function loadAgentKey(dataDir: string): AgentIdentity | undefined {
+  const keyPath = path.join(dataDir, KEYS_DIR, AGENT_KEY_FILE);
+  if (!existsSync(keyPath)) {
+    return undefined;
+  }
+  const buf = readFileSync(keyPath);
+  return deserializeKeypair(buf);
+}
+
 export function loadOrCreateAgentKey(dataDir: string): AgentIdentity {
-  const keysDir = ensureDir(dataDir, 'keys');
-  const keyPath = path.join(keysDir, 'agent.key');
+  const keysDir = ensureDir(dataDir, KEYS_DIR);
+  const keyPath = path.join(keysDir, AGENT_KEY_FILE);
 
   if (existsSync(keyPath)) {
     const buf = readFileSync(keyPath);
@@ -64,7 +78,7 @@ export function loadOwnerKey(dataDir: string): AgentIdentity | undefined {
  * Generate and persist an owner keypair. Overwrites if present.
  */
 export function createOwnerKey(dataDir: string): AgentIdentity {
-  ensureDir(dataDir, 'keys');
+  ensureDir(dataDir, KEYS_DIR);
   const keyPath = path.join(dataDir, OWNER_KEY_FILE);
   const identity = generateIdentity();
   writeFileSync(keyPath, serializeKeypair(identity), { mode: 0o600 });
@@ -83,10 +97,14 @@ export function loadOrCreateDelegationCert(
 ): DelegationCert {
   const certPath = path.join(dataDir, DELEGATION_CERT_FILE);
   if (existsSync(certPath)) {
-    const raw = readFileSync(certPath, 'utf8');
-    const cert = JSON.parse(raw) as DelegationCert;
-    if (cert.expiresAt > Date.now()) {
-      return cert;
+    try {
+      const raw = readFileSync(certPath, 'utf8');
+      const cert = JSON.parse(raw) as DelegationCert;
+      if (cert.expiresAt > Date.now()) {
+        return cert;
+      }
+    } catch {
+      // Corrupt or invalid delegation file; fall through to regenerate
     }
   }
 

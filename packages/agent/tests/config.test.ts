@@ -8,9 +8,17 @@ describe('config', () => {
   });
 
   it('resolveDataDir uses config.dataDir when set', () => {
-    const dir = resolveDataDir({ dataDir: '/custom/path' });
-    expect(dir).toContain('custom');
-    expect(dir).toContain('path');
+    const orig = process.env['AGENTMESH_DATA_DIR'];
+    try {
+      delete process.env['AGENTMESH_DATA_DIR'];
+      const dir = resolveDataDir({ dataDir: '/custom/path' });
+      expect(dir).toContain('custom');
+      expect(dir).toContain('path');
+    } finally {
+      if (orig !== undefined) {
+        process.env['AGENTMESH_DATA_DIR'] = orig;
+      }
+    }
   });
 
   it('resolveDataDir returns path without config', () => {

@@ -41,6 +41,9 @@ export async function runAgent(configPath?: string): Promise<Agent> {
 
   // Register any tools from config (placeholder: only name/description, no dynamic handler loading yet)
   for (const t of config.tools ?? []) {
+    if (t.name === LLM_MESSAGE_TOOL.name) {
+      continue; // Keep built-in LLM handler; do not overwrite with placeholder
+    }
     const tool = { name: t.name, description: t.description, parameters: t.parameters };
     agent.registerTool(tool, async (payload) => {
       return { tool: t.name, payload, message: 'Handler not implemented; add handlerId in config' };

@@ -47,4 +47,13 @@ describe('keys', () => {
     expect(cert.signature).toBeDefined();
     expect(cert.expiresAt).toBeGreaterThan(Date.now());
   });
+
+  it('loadOrCreateDelegationCert returns cached cert on second call', () => {
+    const agentId = loadOrCreateAgentKey(dataDir);
+    const ownerId = createOwnerKey(dataDir);
+    const cert1 = loadOrCreateDelegationCert(dataDir, agentId.publicKey, ownerId);
+    const cert2 = loadOrCreateDelegationCert(dataDir, agentId.publicKey, ownerId);
+    expect(cert2.signature).toEqual(cert1.signature);
+    expect(cert2.expiresAt).toEqual(cert1.expiresAt);
+  });
 });
