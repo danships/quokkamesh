@@ -38,7 +38,7 @@ importers:
 
   packages/agent:
     dependencies:
-      '@agentmesh/transport':
+      '@quokkamesh/transport':
         specifier: workspace:*
         version: link:../transport
       commander:

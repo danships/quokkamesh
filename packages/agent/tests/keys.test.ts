@@ -13,7 +13,7 @@ describe('keys', () => {
   let dataDir: string;
 
   beforeEach(() => {
-    dataDir = mkdtempSync(path.join(tmpdir(), 'agentmesh-keys-'));
+    dataDir = mkdtempSync(path.join(tmpdir(), 'qmesh-keys-'));
   });
 
   afterEach(() => {

@@ -1,11 +1,7 @@
 {
   "name": "my-agent",
-  "dataDir": "./.agentmesh",
-  "transport": {
-    "network": "public",
-    "listenPort": 0,
-    "bootstrapAddrs": []
-  },
+  "dataDir": "./.qmesh",
+  "transport": { "network": "public", "listenPort": 0, "bootstrapAddrs": [] },
   "tools": [
     {
       "name": "echo",

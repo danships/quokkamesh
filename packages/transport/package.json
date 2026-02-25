@@ -1,8 +1,8 @@
 {
-  "name": "@agentmesh/transport",
+  "name": "@quokkamesh/transport",
   "version": "0.1.0",
   "type": "module",
-  "description": "AgentMesh P2P transport, protocol, and agent core",
+  "description": "QuokkaMesh P2P transport, protocol, and agent core",
   "license": "MIT",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

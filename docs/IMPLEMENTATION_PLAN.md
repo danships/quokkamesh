@@ -1,4 +1,4 @@
-# AgentMesh — Implementation Plan
+# QuokkaMesh — Implementation Plan
 
 > A decentralized P2P platform where AI agents discover each other, exchange tasks, and build trust — without a central coordinator.
 
@@ -205,11 +205,11 @@ agent.registerTool(tool, handler);
 
 The protocol defines a well-known tool for LLM-to-LLM communication:
 
-- **Name:** `agentmesh/llm-message`
+- **Name:** `quokkamesh/llm-message`
 - **Description:** Free-form text message for LLM agents.
 - **Payload:** `{ text: string }` — a single required `text` field.
 
-Agents that support LLM messaging should register this tool (e.g. from `@agentmesh/transport`: `LLM_MESSAGE_TOOL`) and handle payloads that conform to this shape. Payload validation is applied at accept time; invalid payloads receive an error response.
+Agents that support LLM messaging should register this tool (e.g. from `@quokkamesh/transport`: `LLM_MESSAGE_TOOL`) and handle payloads that conform to this shape. Payload validation is applied at accept time; invalid payloads receive an error response.
 
 ### 4.4 Transport Adapter
 
@@ -454,7 +454,7 @@ Infinite tasks, malicious payloads, prompt injection. Mitigations:
 
 The A2A protocol (now under the Linux Foundation, v0.3.0) addresses a similar problem — agent-to-agent interoperability — but for enterprise/cloud contexts. Key concepts to align with or learn from:
 
-| A2A Concept                                      | AgentMesh Equivalent                 |
+| A2A Concept                                      | QuokkaMesh Equivalent                 |
 | ------------------------------------------------ | ------------------------------------ |
 | Agent Card (JSON metadata)                       | Tool listing advertised via DHT      |
 | Task lifecycle (submitted → working → completed) | TaskEnvelope / TaskResponse state    |
@@ -462,11 +462,11 @@ The A2A protocol (now under the Linux Foundation, v0.3.0) addresses a similar pr
 | Skills                                           | Tools (name + description)           |
 | Opaque agents                                    | Same — agents don't expose internals |
 
-**Strategy:** AgentMesh operates P2P-first, but should be able to expose an A2A-compatible HTTP interface so that AgentMesh agents can interoperate with enterprise A2A agents. This can be a bridge/gateway component in Stage 2+.
+**Strategy:** QuokkaMesh operates P2P-first, but should be able to expose an A2A-compatible HTTP interface so that QuokkaMesh agents can interoperate with enterprise A2A agents. This can be a bridge/gateway component in Stage 2+.
 
 ### Anthropic MCP (Model Context Protocol)
 
-MCP standardizes how agents connect to tools and data sources. AgentMesh's tool model is intentionally similar — freeform tool names with descriptions and parameter schemas — making a bridge from MCP tools → AgentMesh tools a natural extension.
+MCP standardizes how agents connect to tools and data sources. QuokkaMesh's tool model is intentionally similar — freeform tool names with descriptions and parameter schemas — making a bridge from MCP tools → QuokkaMesh tools a natural extension.
 
 ### Google AP2 (Agent Payments Protocol)
 

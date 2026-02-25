@@ -1,9 +1,9 @@
 {
-  "name": "agentmesh",
+  "name": "quokkamesh",
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "AgentMesh monorepo — P2P agent mesh",
+  "description": "QuokkaMesh monorepo — P2P agent mesh",
   "packageManager": "pnpm@10.29.3",
   "scripts": {
     "build": "pnpm -r build",
@@ -19,6 +19,9 @@
   "lint-staged": {
     "*.{js,ts,tsx}": [
       "eslint --max-warnings=0",
+      "prettier --check"
+    ],
+    "*.json": [
       "prettier --check"
     ]
   },

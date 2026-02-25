@@ -1,4 +1,4 @@
-# AgentMesh
+# QuokkaMesh
 
 **P2P agent mesh proof of concept** — minimum implementation to prove that agents can identify themselves, discover each other over P2P, exchange signed tasks, and return signed results.
 
@@ -60,7 +60,7 @@ pnpm format:check
 ## Project Structure
 
 ```
-agentmesh/
+quokkamesh/
 ├── src/
 │   ├── identity/           # Keys, delegation certs, canonical serialization
 │   ├── protocol/           # TaskEnvelope, TaskResponse, tool registry

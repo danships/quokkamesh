@@ -5,7 +5,7 @@ import {
   generateIdentity,
   createDelegationCert,
   type DelegationCert,
-} from '@agentmesh/transport';
+} from '@quokkamesh/transport';
 
 const KEYS_DIR = 'keys';
 const AGENT_KEY_FILE = 'agent.key';

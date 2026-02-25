@@ -20,15 +20,15 @@ export interface ToolConfig {
   handlerId?: string;
 }
 
-/** Agent mesh configuration file shape. */
-export interface AgentMeshConfig {
+/** QuokkaMesh configuration file shape. */
+export interface QuokkaMeshConfig {
   /** Optional display name for the agent. */
   name?: string;
-  /** Data directory for keys and certs (default: ~/.agentmesh or ./.agentmesh). */
+  /** Data directory for keys and certs (default: ~/.qmesh or ./.qmesh). */
   dataDir?: string;
   /** Transport options. */
   transport?: TransportConfig;
-  /** Tools to register (besides the standard agentmesh/llm-message). */
+  /** Tools to register (besides the standard quokkamesh/llm-message). */
   tools?: ToolConfig[];
   /** Optional paths to skills/prompts/commands (reserved for future use). */
   skills?: string[];
@@ -36,13 +36,13 @@ export interface AgentMeshConfig {
   commands?: string[];
 }
 
-const DEFAULT_CONFIG_PATHS = ['agentmesh.config.json', '.agentmesh.json'];
+const DEFAULT_CONFIG_PATHS = ['qmesh.config.json', '.qmesh.json'];
 
 /**
- * Resolve data directory: AGENTMESH_DATA_DIR env (first), then config.dataDir, then ~/.agentmesh, then ./.agentmesh.
+ * Resolve data directory: QMESH_DATA_DIR env (first), then config.dataDir, then ~/.qmesh, then ./.qmesh.
  */
-export function resolveDataDir(config?: AgentMeshConfig): string {
-  const env = process.env['AGENTMESH_DATA_DIR'];
+export function resolveDataDir(config?: QuokkaMeshConfig): string {
+  const env = process.env['QMESH_DATA_DIR'];
   if (env) {
     return path.resolve(env);
   }
@@ -51,17 +51,17 @@ export function resolveDataDir(config?: AgentMeshConfig): string {
   }
   const home = process.env['HOME'] ?? process.env['USERPROFILE'];
   if (home) {
-    return path.resolve(home, '.agentmesh');
+    return path.resolve(home, '.qmesh');
   }
-  return path.resolve(process.cwd(), '.agentmesh');
+  return path.resolve(process.cwd(), '.qmesh');
 }
 
 /**
- * Load config from file. If AGENTMESH_CONFIG_PATH is set: when it is a file path, that file is used;
- * when it is a directory, agentmesh.config.json / .agentmesh.json are searched there. Otherwise searches cwd.
+ * Load config from file. If QMESH_CONFIG_PATH is set: when it is a file path, that file is used;
+ * when it is a directory, qmesh.config.json / .qmesh.json are searched there. Otherwise searches cwd.
  */
-export function loadConfig(explicitPath?: string): AgentMeshConfig {
-  const envPath = process.env['AGENTMESH_CONFIG_PATH'];
+export function loadConfig(explicitPath?: string): QuokkaMeshConfig {
+  const envPath = process.env['QMESH_CONFIG_PATH'];
   const resolvedEnv = envPath ? path.resolve(envPath) : undefined;
   let paths: string[];
   if (explicitPath) {
@@ -78,7 +78,7 @@ export function loadConfig(explicitPath?: string): AgentMeshConfig {
     if (existsSync(p)) {
       const raw = readFileSync(p, 'utf8');
       try {
-        return JSON.parse(raw) as AgentMeshConfig;
+        return JSON.parse(raw) as QuokkaMeshConfig;
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         throw new Error(`Invalid JSON in config file ${p}: ${message}`);

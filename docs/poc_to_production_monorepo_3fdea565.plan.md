@@ -1,11 +1,11 @@
 ---
 name: POC to Production Monorepo
-overview: Transform AgentMesh from a single-package POC into a monorepo with a dedicated transport package and a runnable agent package, introduce a structured protocol with a standard free-text tool for LLM agents, and re-add kad-dht with LAN vs public modes.
+overview: Transform QuokkaMesh from a single-package POC into a monorepo with a dedicated transport package and a runnable agent package, introduce a structured protocol with a standard free-text tool for LLM agents, and re-add kad-dht with LAN vs public modes.
 todos: []
 isProject: false
 ---
 
-# AgentMesh: POC to Production Plan
+# QuokkaMesh: POC to Production Plan
 
 ## Current state (from [docs/IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md) and codebase)
 
@@ -22,14 +22,14 @@ isProject: false
 **Structure:**
 
 - **Root:** pnpm workspace (`pnpm-workspace.yaml`), shared TypeScript/ESLint/Prettier, root `package.json` with workspace scripts (`build`, `test`, `lint`).
-- `**packages/transport` (e.g. `@agentmesh/transport`):
+- `**packages/transport` (e.g. `@quokkamesh/transport`):
   - Move existing code here: identity ([src/identity/](src/identity/)), protocol ([src/protocol/](src/protocol/)), transport adapters ([src/transport/](src/transport/)), and [src/agent.ts](src/agent.ts).
   - This package exposes: transport interface, `LocalTransport`, `Libp2pTransport`, `Agent`, protocol types and helpers, identity and delegation. No CLI, no file-based config.
-- `**packages/agent` (e.g. `@agentmesh/agent` or `agentmesh-agent`):
-  - Depends on `@agentmesh/transport`.
-  - Runnable entrypoint (e.g. `agent start` or `npx agentmesh-agent start`) that:
-    - Loads config (file-based: config path or default `./agentmesh.config.`).
-    - Loads or generates **signing keys** (agent + optional owner for delegation); keys and certs stored in a designated dir (e.g. `~/.agentmesh` or `./.agentmesh`).
+- `**packages/agent` (e.g. `@quokkamesh/agent` or `qmesh`):
+  - Depends on `@quokkamesh/transport`.
+  - Runnable entrypoint (e.g. `agent start` or `npx qmesh start`) that:
+    - Loads config (file-based: config path or default `./qmesh.config.`).
+    - Loads or generates **signing keys** (agent + optional owner for delegation); keys and certs stored in a designated dir (e.g. `~/.qmesh` or `./.qmesh`).
     - Registers **tools** (from config and/or plugins).
     - Applies **skills**, **prompts**, and **commands** (definitions live in config or linked files).
     - Creates transport (Libp2pTransport with options from config), creates Agent, registers tools, starts agent.
@@ -38,7 +38,7 @@ isProject: false
 **Migration steps:**
 
 - Add `pnpm-workspace.yaml` and move current `package.json` content into `packages/transport`, fix imports and `main`/exports.
-- Create `packages/agent` with dependency on `@agentmesh/transport`, add minimal CLI (e.g. `start`), config loading, key handling, and wiring to `Agent` + `Libp2pTransport`.
+- Create `packages/agent` with dependency on `@quokkamesh/transport`, add minimal CLI (e.g. `start`), config loading, key handling, and wiring to `Agent` + `Libp2pTransport`.
 - Root scripts: `pnpm -r build`, `pnpm -r test`, etc. Keep existing tests in `packages/transport` and add tests for the agent package where appropriate.
 
 ---
@@ -50,15 +50,15 @@ isProject: false
 **Approach:**
 
 - **Standard tool definition for free text:**
-  - Define a well-known tool (e.g. name `agentmesh/llm-message` or `agentmesh/free-text`) with a single parameter: `text` (string).
-  - Schema example: `{ name: "agentmesh/llm-message", description: "Free-form text message for LLM agents", parameters: { type: "object", required: ["text"], properties: { text: { type: "string" } } } }`.
+  - Define a well-known tool (e.g. name `quokkamesh/llm-message` or `quokkamesh/free-text`) with a single parameter: `text` (string).
+  - Schema example: `{ name: "quokkamesh/llm-message", description: "Free-form text message for LLM agents", parameters: { type: "object", required: ["text"], properties: { text: { type: "string" } } } }`.
   - This becomes the standard way for LLM agents to send arbitrary text to each other; all other tools can remain custom with their own schemas.
 - **Clamping the protocol:**
   - **Option A (recommended):** Keep `TaskEnvelope.payload` as typed by tool: for the standard free-text tool, payload is `{ text: string }`; for other tools, payload is validated against each tool’s `parameters` (JSON Schema) when the tool is registered. So the protocol “clamps” by: (1) defining standard tools in the codebase/spec, (2) validating payload per tool at send/accept time.
   - **Option B:** Replace `payload: unknown` with a discriminated union (e.g. `payload: LlmMessagePayload | CustomToolPayload`) and a fixed set of tool names in the spec; more breaking and less flexible.
   - Implement in **transport package**: add a small **protocol** module (e.g. `packages/transport/src/protocol/standard-tools.ts`) that exports the free-text tool definition and a validator helper. Agent package (and any consumer) can validate payloads against tool schema before sending and when receiving.
 - **Concrete steps:**
-  - Add `STANDARD_TOOLS` (or similar) in transport package with at least `agentmesh/llm-message` (name, description, parameters schema).
+  - Add `STANDARD_TOOLS` (or similar) in transport package with at least `quokkamesh/llm-message` (name, description, parameters schema).
   - Add optional payload validation in `Agent.request` and in the task handler path (validate `envelope.payload` against the registered tool’s schema); invalid payload → error response.
   - Document the free-text tool in the protocol spec (e.g. in IMPLEMENTATION_PLAN or a PROTOCOL.md) so other implementations can align.
 
@@ -108,17 +108,17 @@ isProject: false
 **Scope:**
 
 - **Config:**
-  - File-based (e.g. `agentmesh.config.json` / `.ts` / `.yaml`).
+  - File-based (e.g. `qmesh.config.json` / `.ts` / `.yaml`).
   - Contents: transport type and options (listen port, `network: 'lan' | 'public'`, bootstrap addrs), agent display name/id (optional), paths for keys and data dir.
   - Optional: paths to or inline definitions for tools, skills, prompts, commands.
 - **Keys and security:**
   - **Agent keypair:** Path for agent ed25519 key (e.g. `keys/agent.key` under data dir); generate if missing.
   - **Owner keypair (optional):** For delegation; path e.g. `keys/owner.key`.
   - **Delegation cert:** If owner is configured, create or load delegation cert (scope, TTL) and pass to `Agent`.
-  - All under a single “data dir” (e.g. `~/.agentmesh` or `./.agentmesh`) so keys and certs live in one place.
+  - All under a single “data dir” (e.g. `~/.qmesh` or `./.qmesh`) so keys and certs live in one place.
 - **Tools:**
   - Config lists tools (name, description, parameters schema) and how to run them (e.g. local handler module path or built-in handler name).
-  - Built-in registration of the standard free-text tool `agentmesh/llm-message` so every runnable agent can receive LLM messages.
+  - Built-in registration of the standard free-text tool `quokkamesh/llm-message` so every runnable agent can receive LLM messages.
   - Other tools registered from config or plugins (files that export tool def + handler).
 - **Commands, skills, prompts:**
   - **Commands:** CLI subcommands or config-defined actions (e.g. “run this tool”, “send this prompt”). Definitions in config or linked files.
@@ -131,7 +131,7 @@ isProject: false
 
 **File layout (suggested):**
 
-- `packages/agent/package.json` (bin entry, depends on `@agentmesh/transport`).
+- `packages/agent/package.json` (bin entry, depends on `@quokkamesh/transport`).
 - `packages/agent/src/cli.ts` (argument parsing, dispatch to `start` / `init` / etc.).
 - `packages/agent/src/runner.ts` or `start.ts` (load config, keys, create transport + Agent, register tools, start).
 - `packages/agent/src/config.ts` (config schema and loading from file).
