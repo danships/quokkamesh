@@ -1,0 +1,1 @@
+{"name":"my-agent","dataDir":"./.qmesh","transport":{"network":"public","listenPort":0,"bootstrapAddrs":[]},"tools":[{"name":"echo","description":"Echoes back the message","parameters":{"type":"object","required":["message"],"properties":{"message":{"type":"string"}}}}]}

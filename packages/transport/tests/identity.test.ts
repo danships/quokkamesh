@@ -13,7 +13,7 @@ describe('identity', () => {
 
   it('sign and verify', () => {
     const id = generateIdentity();
-    const message = new TextEncoder().encode('hello agentmesh');
+    const message = new TextEncoder().encode('hello quokkamesh');
     const signature = sign(message, id.secretKey);
     expect(verify(signature, message, id.publicKey)).toBe(true);
   });

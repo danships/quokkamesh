@@ -11,7 +11,7 @@ import type { PeerId, Stream } from '@libp2p/interface';
 import type { Tool } from '../protocol/types.js';
 import type { Transport } from './interface.js';
 
-const PROTOCOL = '/agentmesh/task/1.0.0';
+const PROTOCOL = '/quokkamesh/task/1.0.0';
 
 /** Network mode: LAN (local only) or public internet. */
 export type NetworkMode = 'lan' | 'public';
@@ -77,9 +77,9 @@ export class Libp2pTransport implements Transport {
       protocol: isLan ? '/ipfs/lan/kad/1.0.0' : '/ipfs/kad/1.0.0',
       peerInfoMapper: isLan ? removePublicAddressesMapper : removePrivateAddressesMapper,
       clientMode: false,
-      logPrefix: isLan ? 'agentmesh:dht-lan' : 'agentmesh:dht-public',
-      datastorePrefix: isLan ? '/agentmesh-dht-lan' : '/agentmesh-dht-public',
-      metricsPrefix: isLan ? 'agentmesh_dht_lan' : 'agentmesh_dht_public',
+      logPrefix: isLan ? 'quokkamesh:dht-lan' : 'quokkamesh:dht-public',
+      datastorePrefix: isLan ? '/quokkamesh-dht-lan' : '/quokkamesh-dht-public',
+      metricsPrefix: isLan ? 'quokkamesh_dht_lan' : 'quokkamesh_dht_public',
     });
 
     this.node = await createLibp2p({
@@ -104,7 +104,7 @@ export class Libp2pTransport implements Transport {
     });
 
     // Handle incoming tool advertisement messages
-    await this.node.handle('/agentmesh/tools/1.0.0', (stream, connection) => {
+    await this.node.handle('/quokkamesh/tools/1.0.0', (stream, connection) => {
       const remotePeer = connection.remotePeer.toString();
       this.readToolsStream(stream, remotePeer);
     });
@@ -257,7 +257,7 @@ export class Libp2pTransport implements Transport {
 
     const payload = JSON.stringify(this.localTools);
     const bytes = new TextEncoder().encode(payload);
-    const stream = await conn.newStream('/agentmesh/tools/1.0.0');
+    const stream = await conn.newStream('/quokkamesh/tools/1.0.0');
     await this.writeAndClose(stream, bytes);
   }
 

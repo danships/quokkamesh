@@ -8,19 +8,19 @@ import {
 } from '../src/protocol/standard-tools.js';
 
 describe('standard tools', () => {
-  it('LLM_MESSAGE_TOOL_NAME is agentmesh/llm-message', () => {
-    expect(LLM_MESSAGE_TOOL_NAME).toBe('agentmesh/llm-message');
+  it('LLM_MESSAGE_TOOL_NAME is quokkamesh/llm-message', () => {
+    expect(LLM_MESSAGE_TOOL_NAME).toBe('quokkamesh/llm-message');
   });
 
   it('LLM_MESSAGE_TOOL has name, description, parameters', () => {
-    expect(LLM_MESSAGE_TOOL.name).toBe('agentmesh/llm-message');
+    expect(LLM_MESSAGE_TOOL.name).toBe('quokkamesh/llm-message');
     expect(LLM_MESSAGE_TOOL.description).toContain('Free-form');
     expect(LLM_MESSAGE_TOOL.parameters).toBeDefined();
     expect((LLM_MESSAGE_TOOL.parameters as { required?: string[] }).required).toEqual(['text']);
   });
 
-  it('getStandardTool returns LLM_MESSAGE_TOOL for agentmesh/llm-message', () => {
-    expect(getStandardTool('agentmesh/llm-message')).toEqual(LLM_MESSAGE_TOOL);
+  it('getStandardTool returns LLM_MESSAGE_TOOL for quokkamesh/llm-message', () => {
+    expect(getStandardTool('quokkamesh/llm-message')).toEqual(LLM_MESSAGE_TOOL);
     expect(getStandardTool('other')).toBeUndefined();
   });
 
@@ -37,7 +37,7 @@ describe('validatePayload', () => {
     expect(validatePayload(LLM_MESSAGE_TOOL, { text: '' })).toEqual({ valid: true });
   });
 
-  it('rejects non-object for agentmesh/llm-message', () => {
+  it('rejects non-object for quokkamesh/llm-message', () => {
     const r1 = validatePayload(LLM_MESSAGE_TOOL, null);
     expect(r1.valid).toBe(false);
     if (!r1.valid) {
@@ -49,7 +49,7 @@ describe('validatePayload', () => {
     expect(validatePayload(LLM_MESSAGE_TOOL, []).valid).toBe(false);
   });
 
-  it('rejects missing or non-string text for agentmesh/llm-message', () => {
+  it('rejects missing or non-string text for quokkamesh/llm-message', () => {
     const r1 = validatePayload(LLM_MESSAGE_TOOL, {});
     expect(r1.valid).toBe(false);
     if (!r1.valid) {

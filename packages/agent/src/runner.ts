@@ -3,11 +3,11 @@ import {
   type DelegationCert,
   Libp2pTransport,
   LLM_MESSAGE_TOOL,
-} from '@agentmesh/transport';
+} from '@quokkamesh/transport';
 import { loadConfig, resolveDataDir } from './config.js';
 import { loadOrCreateAgentKey, loadOwnerKey, loadOrCreateDelegationCert } from './keys.js';
 
-/** Default handler for agentmesh/llm-message: echoes the text and returns it. */
+/** Default handler for quokkamesh/llm-message: echoes the text and returns it. */
 async function defaultLlmMessageHandler(payload: unknown): Promise<unknown> {
   const obj = payload as { text?: string };
   const text = typeof obj?.text === 'string' ? obj.text : '';

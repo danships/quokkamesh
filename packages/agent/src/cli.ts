@@ -6,7 +6,7 @@ import { runAgent } from './runner.js';
 import { loadConfig, resolveDataDir } from './config.js';
 import { loadOrCreateAgentKey, loadOwnerKey, loadAgentKey, createOwnerKey } from './keys.js';
 
-program.name('agentmesh-agent').description('Run an AgentMesh agent').version('0.1.0');
+program.name('qmesh').description('Run a QuokkaMesh agent').version('0.1.0');
 
 program
   .command('start')
@@ -47,12 +47,12 @@ program
 program
   .command('init')
   .description('Scaffold config and generate keys in the data directory')
-  .option('-c, --config <path>', 'Path to write config file (default: ./agentmesh.config.json)')
-  .option('-d, --data-dir <path>', 'Data directory for keys (default: ./.agentmesh)')
+  .option('-c, --config <path>', 'Path to write config file (default: ./qmesh.config.json)')
+  .option('-d, --data-dir <path>', 'Data directory for keys (default: ./.qmesh)')
   .action(async (opts: { config?: string; dataDir?: string }) => {
     try {
-      const dataDir = path.resolve(opts.dataDir ?? './.agentmesh');
-      const configPath = path.resolve(opts.config ?? './agentmesh.config.json');
+      const dataDir = path.resolve(opts.dataDir ?? './.qmesh');
+      const configPath = path.resolve(opts.config ?? './qmesh.config.json');
       mkdirSync(dataDir, { recursive: true });
       loadOrCreateAgentKey(dataDir);
       if (!loadOwnerKey(dataDir)) {
@@ -84,13 +84,13 @@ const keysCmd = program.command('keys').description('Key management');
 keysCmd
   .command('show')
   .description('Show agent ID (public key hex) and multiaddrs if agent is running')
-  .option('-d, --data-dir <path>', 'Data directory (default: from config or ~/.agentmesh)')
+  .option('-d, --data-dir <path>', 'Data directory (default: from config or ~/.qmesh)')
   .action(async (opts: { dataDir?: string }) => {
     const config = loadConfig();
     const dataDir = opts.dataDir ?? resolveDataDir(config);
     const identity = loadAgentKey(dataDir);
     if (!identity) {
-      console.error('No agent key found. Run `agentmesh-agent init` first.');
+      console.error('No agent key found. Run `qmesh init` first.');
       process.exit(1);
     }
     const hex = Buffer.from(identity.publicKey).toString('hex');

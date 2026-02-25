@@ -1,11 +1,11 @@
 {
-  "name": "@agentmesh/agent",
+  "name": "@quokkamesh/agent",
   "version": "0.1.0",
   "type": "module",
-  "description": "Runnable AgentMesh agent — config, keys, CLI, tools",
+  "description": "Runnable QuokkaMesh agent — config, keys, CLI, tools",
   "license": "MIT",
   "bin": {
-    "agentmesh-agent": "./dist/cli.js"
+    "qmesh": "./dist/cli.js"
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -29,7 +29,7 @@
     "format": "../../node_modules/.bin/eslint . --fix && ../../node_modules/.bin/prettier --write ."
   },
   "dependencies": {
-    "@agentmesh/transport": "workspace:*",
+    "@quokkamesh/transport": "workspace:*",
     "commander": "^12.1.0"
   },
   "devDependencies": {

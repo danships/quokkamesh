@@ -1,4 +1,4 @@
-# AgentMesh — Proof of Concept Plan
+# QuokkaMesh — Proof of Concept Plan
 
 > Minimum implementation to prove: agents can identify themselves, discover each other over P2P, exchange signed tasks, and return signed results.
 
@@ -25,7 +25,7 @@ This PoC covers **only** what's needed to validate the core loop:
 ## Project Structure
 
 ```
-agentmesh/
+quokkamesh/
 ├── src/
 │   ├── identity/
 │   │   ├── keys.ts              # Keypair generation, signing, verification
@@ -289,7 +289,7 @@ class Libp2pTransport implements Transport {
   //   - Yamux stream multiplexing
   //   - Kademlia DHT for discovery
   //
-  // Custom protocol: /agentmesh/task/1.0.0
+  // Custom protocol: /quokkamesh/task/1.0.0
   //   - Handles incoming streams → passes to onMessage handler
   //
   // advertise(): stores tool names in DHT under content-addressed keys

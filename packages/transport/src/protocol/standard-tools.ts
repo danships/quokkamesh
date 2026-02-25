@@ -1,7 +1,7 @@
 import type { Tool } from './types.js';
 
 /** Well-known tool name for free-form text messages between LLM agents. */
-export const LLM_MESSAGE_TOOL_NAME = 'agentmesh/llm-message';
+export const LLM_MESSAGE_TOOL_NAME = 'quokkamesh/llm-message';
 
 /** Standard tool definition: free-text input for LLM-to-LLM communication. */
 export const LLM_MESSAGE_TOOL: Tool = {
@@ -28,7 +28,7 @@ const STANDARD_TOOLS: Record<string, Tool> = {
 
 /**
  * Validates payload against a tool definition.
- * For the standard agentmesh/llm-message tool, enforces { text: string }.
+ * For the standard quokkamesh/llm-message tool, enforces { text: string }.
  * For other tools, returns valid if no parameters schema is defined; otherwise performs minimal checks.
  */
 export function validatePayload(
