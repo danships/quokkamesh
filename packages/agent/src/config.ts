@@ -9,6 +9,16 @@ export interface TransportConfig {
   listenPort?: number;
   /** Bootstrap multiaddrs. */
   bootstrapAddrs?: string[];
+  /**
+   * Whether to advertise registered tools as DHT provider records (capability discovery).
+   * @default true
+   */
+  advertiseCapabilities?: boolean;
+  /**
+   * Namespace prefix for capability keys. No allowlist; any registered tool is advertised.
+   * @default 'quokkamesh/capability'
+   */
+  capabilityNamespace?: string;
 }
 
 /** Inline tool definition (name, description, optional parameters). Handler is referenced by handlerId. */

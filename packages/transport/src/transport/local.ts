@@ -73,4 +73,8 @@ export class LocalTransport implements Transport {
     }
     return peerIds;
   }
+
+  async findProvidersForCapability(_descriptor: string): Promise<string[]> {
+    return [];
+  }
 }

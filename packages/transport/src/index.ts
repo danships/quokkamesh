@@ -30,3 +30,7 @@ export type { Transport } from './transport/interface.js';
 export { LocalTransport } from './transport/local.js';
 export { Libp2pTransport } from './transport/libp2p.js';
 export type { Libp2pTransportOptions, NetworkMode } from './transport/libp2p.js';
+export {
+  capabilityKey,
+  capabilityDescriptor,
+} from './capability-key.js';

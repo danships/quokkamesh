@@ -8,8 +8,10 @@ import { kadDHT, removePublicAddressesMapper, removePrivateAddressesMapper } fro
 import { ping } from '@libp2p/ping';
 import type { Libp2p } from 'libp2p';
 import type { PeerId, Stream } from '@libp2p/interface';
+import type { CID } from 'multiformats/cid';
 import type { Tool } from '../protocol/types.js';
 import type { Transport } from './interface.js';
+import { capabilityKey } from '../capability-key.js';
 
 const PROTOCOL = '/quokkamesh/task/1.0.0';
 
@@ -27,6 +29,16 @@ export interface Libp2pTransportOptions {
    * @default 'public'
    */
   network?: NetworkMode;
+  /**
+   * Whether to advertise registered tools as DHT provider records so others can find providers by capability.
+   * @default true
+   */
+  advertiseCapabilities?: boolean;
+  /**
+   * Namespace prefix for capability keys (descriptor = namespace + tool name). No allowlist; any registered tool is advertised.
+   * @default 'quokkamesh/capability'
+   */
+  capabilityNamespace?: string;
 }
 
 /**
@@ -39,22 +51,37 @@ type PeerDiscoveryEvent = { detail: { id: PeerId } };
 /** Event detail for connection:open (remotePeer is PeerId). */
 type ConnectionOpenEvent = { detail: { remotePeer: PeerId } };
 
+/** Content routing subset we use for capability provide/findProviders. */
+interface ContentRoutingLike {
+  provide(cid: CID): Promise<void>;
+  findProviders(cid: CID): AsyncIterable<{ id: PeerId }>;
+}
+
+const PROVIDER_REPROVIDE_INTERVAL_MS = 20 * 60 * 1000; // 20 minutes
+
 export class Libp2pTransport implements Transport {
   private node!: Libp2p;
   private messageHandler: ((peerId: string, msg: Uint8Array) => void) | null = null;
   private peerDiscoveryHandler: ((e: PeerDiscoveryEvent) => void) | null = null;
   private connectionOpenHandler: ((e: ConnectionOpenEvent) => void) | null = null;
+  private reprovideTimer: ReturnType<typeof setInterval> | null = null;
   private readonly listenPort: number;
   private readonly bootstrapAddrs: string[];
   private readonly network: NetworkMode;
+  private readonly advertiseCapabilities: boolean;
+  private readonly capabilityNamespace: string;
   private readonly localTools: Tool[] = [];
   private readonly peerTools = new Map<string, Tool[]>();
+  /** CIDs we are currently providing (for unprovide when tools change). */
+  private providedCids = new Set<string>();
   private started = false;
 
   constructor(options: Libp2pTransportOptions = {}) {
     this.listenPort = options.listenPort ?? 0;
     this.bootstrapAddrs = options.bootstrapAddrs ?? [];
     this.network = options.network ?? 'public';
+    this.advertiseCapabilities = options.advertiseCapabilities ?? true;
+    this.capabilityNamespace = options.capabilityNamespace ?? 'quokkamesh/capability';
   }
 
   get peerId(): string {
@@ -82,7 +109,7 @@ export class Libp2pTransport implements Transport {
       metricsPrefix: isLan ? 'quokkamesh_dht_lan' : 'quokkamesh_dht_public',
     });
 
-    this.node = await createLibp2p({
+    this.node = (await createLibp2p({
       addresses: {
         listen: [`/ip4/0.0.0.0/tcp/${this.listenPort}`],
       },
@@ -95,7 +122,7 @@ export class Libp2pTransport implements Transport {
         ping: ping(),
         dht: dhtService,
       },
-    });
+    }));
 
     // Handle incoming task messages
     await this.node.handle(PROTOCOL, (stream, connection) => {
@@ -135,12 +162,18 @@ export class Libp2pTransport implements Transport {
 
     await this.node.start();
     this.started = true;
+    if (this.advertiseCapabilities && this.localTools.length > 0) {
+      await this.provideCapabilities();
+      this.scheduleReprovide();
+    }
   }
 
   async stop(): Promise<void> {
     if (!this.started) {
       return;
     }
+    this.clearReprovideTimer();
+    this.providedCids.clear();
     if (this.node) {
       if (this.peerDiscoveryHandler) {
         this.node.removeEventListener(
@@ -182,6 +215,11 @@ export class Libp2pTransport implements Transport {
     this.localTools.length = 0;
     this.localTools.push(...tools);
 
+    if (this.advertiseCapabilities && this.getContentRouting()) {
+      await this.updateCapabilityProviders();
+      this.scheduleReprovide();
+    }
+
     // Send tool advertisement to all connected peers
     const peers = this.node.getPeers();
     await Promise.all(
@@ -190,18 +228,63 @@ export class Libp2pTransport implements Transport {
   }
 
   async discover(toolName: string): Promise<string[]> {
-    const peerIds: string[] = [];
+    const seen = new Set<string>();
     for (const [pid, tools] of this.peerTools) {
       if (tools.some((t) => t.name === toolName)) {
-        peerIds.push(pid);
+        seen.add(pid);
       }
     }
+    if (this.advertiseCapabilities) {
+      const dhtPeers = await this.findProvidersForCapability(toolName);
+      for (const pid of dhtPeers) {
+        seen.add(pid);
+      }
+    }
+    return [...seen];
+  }
+
+  async findProvidersForCapability(descriptor: string): Promise<string[]> {
+    const cr = this.getContentRouting();
+    if (!cr) {
+      return [];
+    }
+    const cid = capabilityKey(descriptor, this.capabilityNamespace);
+    const peerIds: string[] = [];
+    try {
+      for await (const provider of cr.findProviders(cid)) {
+        peerIds.push(provider.id.toString());
+      }
+    } catch {
+      // DHT can fail (e.g. no peers); return what we have
+    }
     return peerIds;
+  }
+
+  private getContentRouting(): ContentRoutingLike | undefined {
+    return (this.node as Libp2p & { contentRouting?: ContentRoutingLike }).contentRouting;
   }
 
   /** Get the multiaddrs this transport is listening on. */
   getMultiaddrs(): string[] {
     return this.node.getMultiaddrs().map((ma) => ma.toString());
+  }
+
+  /**
+   * Dial a peer by multiaddrs (e.g. for tests or explicit bootstrap).
+   * Tries each address in order until one succeeds.
+   */
+  async dialAddresses(multiaddrs: string[]): Promise<void> {
+    const { multiaddr } = await import('@multiformats/multiaddr');
+    for (const addrStr of multiaddrs) {
+      try {
+        const ma = multiaddr(addrStr);
+        await this.node.dial(ma);
+        return;
+      } catch {
+        continue;
+      }
+    }
+    throw new Error('dialAddresses: all addresses failed');
   }
 
   /** Wait for a connection to a specific peer (with timeout). */
@@ -319,5 +402,57 @@ export class Libp2pTransport implements Transport {
       await stream.onDrain();
     }
     await stream.close();
+  }
+
+  private async provideCapabilities(): Promise<void> {
+    const cr = this.getContentRouting();
+    if (!cr) {
+      return;
+    }
+    for (const tool of this.localTools) {
+      try {
+        const cid = capabilityKey(tool.name, this.capabilityNamespace);
+        await cr.provide(cid);
+        this.providedCids.add(cid.toString());
+      } catch {
+        // Ignore per-tool provide errors (e.g. DHT not ready)
+      }
+    }
+  }
+
+  private async updateCapabilityProviders(): Promise<void> {
+    const cr = this.getContentRouting();
+    if (!cr) {
+      return;
+    }
+    const newCids = new Set<string>();
+    for (const tool of this.localTools) {
+      const cid = capabilityKey(tool.name, this.capabilityNamespace);
+      const key = cid.toString();
+      newCids.add(key);
+      if (!this.providedCids.has(key)) {
+        try {
+          await cr.provide(cid);
+          this.providedCids.add(key);
+        } catch {
+          // Ignore
+        }
+      }
+    }
+    this.providedCids = newCids;
+  }
+
+  private scheduleReprovide(): void {
+    this.clearReprovideTimer();
+    this.reprovideTimer = setInterval(() => {
+      void this.provideCapabilities();
+    }, PROVIDER_REPROVIDE_INTERVAL_MS);
+  }
+
+  private clearReprovideTimer(): void {
+    if (this.reprovideTimer) {
+      clearInterval(this.reprovideTimer);
+      this.reprovideTimer = null;
+    }
   }
 }

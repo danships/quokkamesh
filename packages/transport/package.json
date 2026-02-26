@@ -19,14 +19,17 @@
   "scripts": {
     "build": "tsc",
     "test": "vitest run",
+    "test:integration": "RUN_P2P_INTEGRATION=1 vitest run --testTimeout=60000 --hookTimeout=60000",
     "test:watch": "vitest",
     "lint": "../../node_modules/.bin/eslint . && ../../node_modules/.bin/prettier --check .",
     "lint:eslint": "../../node_modules/.bin/eslint .",
     "lint:prettier": "../../node_modules/.bin/prettier --check .",
     "format": "../../node_modules/.bin/eslint . --fix && ../../node_modules/.bin/prettier --write ."
   },
-  "dependencies": {
-    "@chainsafe/libp2p-noise": "^17.0.0",
+"dependencies": {
+      "@multiformats/multiaddr": "^13.0.1",
+      "multiformats": "^13.4.2",
+      "@chainsafe/libp2p-noise": "^17.0.0",
     "@chainsafe/libp2p-yamux": "^8.0.1",
     "@libp2p/bootstrap": "^12.0.11",
     "@libp2p/identify": "^4.0.10",
