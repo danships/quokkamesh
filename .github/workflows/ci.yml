@@ -43,3 +43,5 @@ jobs:
 
       - name: Test
         run: pnpm test
+        env:
+          RUN_P2P_INTEGRATION: "1"

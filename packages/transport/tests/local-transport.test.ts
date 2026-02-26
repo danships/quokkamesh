@@ -83,4 +83,9 @@ describe('LocalTransport', () => {
     const t = new LocalTransport('orphan');
     await expect(t.advertise([echoTool])).rejects.toThrow('cannot advertise before start');
   });
+
+  it('findProvidersForCapability returns empty (no DHT)', async () => {
+    const peerIds = await transportA.findProvidersForCapability('echo');
+    expect(peerIds).toEqual([]);
+  });
 });

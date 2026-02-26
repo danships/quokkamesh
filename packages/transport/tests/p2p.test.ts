@@ -3,8 +3,11 @@ import { Agent } from '../src/agent.js';
 import { Libp2pTransport } from '../src/transport/libp2p.js';
 import { verifyTaskResponse } from '../src/protocol/envelope.js';
 import { echoTool, echoHandler } from './fixtures/echo.js';
+import { dialableLocalAddrs } from './fixtures/local-addrs.js';
 
-describe('P2P Integration', () => {
+const runP2PIntegration = Boolean(process.env['RUN_P2P_INTEGRATION']);
+
+describe.skipIf(!runP2PIntegration)('P2P Integration', () => {
   let agentA: Agent;
   let agentB: Agent;
   let transportA: Libp2pTransport;
@@ -17,7 +20,10 @@ describe('P2P Integration', () => {
     agentB.registerTool(echoTool, echoHandler);
     await agentB.start();
 
-    const bAddrs = transportB.getMultiaddrs();
+    const bAddrs = dialableLocalAddrs(
+      transportB.getMultiaddrs(),
+      agentB.peerId,
+    );
     expect(bAddrs.length).toBeGreaterThan(0);
 
     transportA = new Libp2pTransport({
@@ -27,9 +33,10 @@ describe('P2P Integration', () => {
     agentA = new Agent(transportA);
     await agentA.start();
 
-    await transportA.waitForPeer(agentB.peerId, 10_000);
-    await transportA.waitForTool('echo', 10_000);
-  }, 30_000);
+    await transportA.dialAddresses(bAddrs);
+    await transportA.waitForPeer(agentB.peerId, 20_000);
+    await transportA.waitForTool('echo', 20_000);
+  }, 60_000);
 
   afterAll(async () => {
     await agentA?.stop();

@@ -20,8 +20,14 @@ export interface Transport {
   /** Advertise that this peer provides the given tools (for discovery). */
   advertise(tools: Tool[]): Promise<void>;
 
-  /** Discover peerIds that advertise the given tool name. */
+  /** Discover peerIds that advertise the given tool name (e.g. from DHT and/or connected peers). */
   discover(toolName: string): Promise<string[]>;
+
+  /**
+   * Find peerIds that advertise the given capability descriptor on the DHT.
+   * Descriptor is any string (e.g. tool name); same key derivation as advertising. No fixed vocabulary.
+   */
+  findProvidersForCapability(descriptor: string): Promise<string[]>;
 
   /** This transport's peer identity (used for addressing by other peers). */
   readonly peerId: string;

@@ -34,6 +34,8 @@ export async function runAgent(configPath?: string): Promise<Agent> {
     listenPort: transportOpts.listenPort ?? 0,
     bootstrapAddrs: transportOpts.bootstrapAddrs ?? [],
     network: transportOpts.network ?? 'public',
+    advertiseCapabilities: transportOpts.advertiseCapabilities,
+    capabilityNamespace: transportOpts.capabilityNamespace,
   });
 
   const agent = new Agent(transport, {
